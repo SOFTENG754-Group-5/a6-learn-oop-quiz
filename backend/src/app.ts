@@ -3,6 +3,7 @@ import express from 'express'
 
 import { healthRoutes } from './routes/healthRoutes'
 import { quizRoutes } from './routes/quizRoutes'
+import { resultRoutes } from './routes/resultRoutes'
 import { submissionRoutes } from './routes/submissionRoutes'
 
 export const app = express()
@@ -17,3 +18,4 @@ app.use(express.json())
 app.use('/health', healthRoutes)
 app.use('/api/quizzes', quizRoutes)
 app.use('/api/quizzes', submissionRoutes)
+app.use('/api/submissions', resultRoutes)
