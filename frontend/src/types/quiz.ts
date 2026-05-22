@@ -42,3 +42,20 @@ export type QuizResult = {
   totalQuestions: number
   recommendations: Recommendation[]
 }
+
+export type QuizSubmission = {
+  submissionId: string
+  quizId: string
+  answers: UserAnswer[]
+}
+
+export type QuizSubmissionResult = {
+  submissionId: string
+  quizId: string
+  scorePercentage: number
+  correctAnswers: number
+  totalQuestions: number
+  feedbackMessage: string
+  weakTopics: string[]
+  recommendation: string
+}

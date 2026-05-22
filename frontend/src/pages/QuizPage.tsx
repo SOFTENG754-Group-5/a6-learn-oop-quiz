@@ -1,23 +1,27 @@
 import { useState } from 'react'
 import ProgressIndicator from '../components/ProgressIndicator'
 import QuestionCard from '../components/QuestionCard'
-import { mockQuiz } from '../data/mockQuiz'
-import type { UserAnswer } from '../types/quiz'
+import { submitQuiz } from '../services/quizApi'
+import type { Quiz, UserAnswer } from '../types/quiz'
 
 type QuizPageProps = {
+  quiz: Quiz
   onBackToOverview: () => void
-  onShowResults: () => void
+  onShowResults: (submissionId: string) => void
 }
 
-function QuizPage({ onBackToOverview, onShowResults }: QuizPageProps) {
+function QuizPage({ quiz, onBackToOverview, onShowResults }: QuizPageProps) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [answers, setAnswers] = useState<UserAnswer[]>([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
-  const currentQuestion = mockQuiz.questions[currentQuestionIndex]
+  const currentQuestion = quiz.questions[currentQuestionIndex]
   const currentAnswer = answers.find((answer) => answer.questionId === currentQuestion.id)
-  const isFinalQuestion = currentQuestionIndex === mockQuiz.questions.length - 1
+  const isFinalQuestion = currentQuestionIndex === quiz.questions.length - 1
 
   const handleSelectOption = (questionId: string, selectedOptionId: string) => {
+    setSubmitError(null)
     setAnswers((previousAnswers) => {
       const otherAnswers = previousAnswers.filter((answer) => answer.questionId !== questionId)
 
@@ -33,21 +37,31 @@ function QuizPage({ onBackToOverview, onShowResults }: QuizPageProps) {
     setCurrentQuestionIndex((previousIndex) => previousIndex + 1)
   }
 
-  const handleSubmitQuiz = () => {
-    if (!currentAnswer) {
+  const handleSubmitQuiz = async () => {
+    if (!currentAnswer || isSubmitting) {
       return
     }
 
-    onShowResults()
+    setIsSubmitting(true)
+    setSubmitError(null)
+
+    try {
+      const submission = await submitQuiz(answers)
+      onShowResults(submission.submissionId)
+    } catch {
+      setSubmitError('Unable to submit the quiz. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
     <section className="page-panel" aria-labelledby="quiz-title">
       <p className="eyebrow">Quiz</p>
-      <h1 id="quiz-title">{mockQuiz.title}</h1>
+      <h1 id="quiz-title">{quiz.title}</h1>
       <ProgressIndicator
         currentQuestion={currentQuestionIndex + 1}
-        totalQuestions={mockQuiz.questions.length}
+        totalQuestions={quiz.questions.length}
       />
       <QuestionCard
         question={currentQuestion}
@@ -62,10 +76,10 @@ function QuizPage({ onBackToOverview, onShowResults }: QuizPageProps) {
           <button
             className="primary-button"
             type="button"
-            disabled={!currentAnswer}
+            disabled={!currentAnswer || isSubmitting}
             onClick={handleSubmitQuiz}
           >
-            Submit Quiz
+            {isSubmitting ? 'Submitting...' : 'Submit Quiz'}
           </button>
         ) : (
           <button
@@ -78,6 +92,7 @@ function QuizPage({ onBackToOverview, onShowResults }: QuizPageProps) {
           </button>
         )}
       </div>
+      {submitError && <p role="alert">{submitError}</p>}
     </section>
   )
 }

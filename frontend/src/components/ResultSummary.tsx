@@ -1,11 +1,14 @@
-export type ResultSummaryData = {
-  scorePercentage: number
-  correctAnswers: number
-  totalQuestions: number
-  feedbackMessage: string
-  weakTopics: string[]
-  recommendation: string
-}
+import type { QuizSubmissionResult } from '../types/quiz'
+
+export type ResultSummaryData = Pick<
+  QuizSubmissionResult,
+  | 'scorePercentage'
+  | 'correctAnswers'
+  | 'totalQuestions'
+  | 'feedbackMessage'
+  | 'weakTopics'
+  | 'recommendation'
+>
 
 type ResultSummaryProps = {
   result: ResultSummaryData
