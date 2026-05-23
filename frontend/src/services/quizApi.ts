@@ -1,101 +1,95 @@
-import { mockAnswerKey, mockQuiz, mockRecommendations } from '../data/mockQuiz'
-import type {
-  QuestionTopic,
-  Quiz,
-  QuizSubmission,
-  QuizSubmissionResult,
-  UserAnswer,
-} from '../types/quiz'
+import type { Question, QuestionTopic, Quiz, QuizSubmission, QuizSubmissionResult, UserAnswer } from '../types/quiz'
 
-const mockSubmissionResults = new Map<string, QuizSubmissionResult>()
-let mockSubmissionCounter = 0
+// Override by setting VITE_API_BASE_URL in frontend/.env
+const API_BASE_URL: string =
+  (import.meta.env['VITE_API_BASE_URL'] as string | undefined) ?? 'http://localhost:3001'
+
+type BackendOption = { optionId: string; text: string }
+type BackendQuestion = { questionId: string; topic: string; prompt: string; options: BackendOption[] }
+type BackendQuizResponse = { quizId: string; title: string; description: string; questions: BackendQuestion[] }
+
+type BackendRecommendation = { type: string; message: string; topic?: string }
+type BackendSubmissionResult = {
+  submissionId: string
+  quizId: string
+  score: number
+  correctAnswers: number
+  totalQuestions: number
+  feedback: string
+  weakTopics: string[]
+  recommendation: BackendRecommendation
+}
 
 export async function getQuiz(): Promise<Quiz> {
-  return mockQuiz
+  const response = await fetch(`${API_BASE_URL}/api/quizzes/oop-basics`)
+
+  if (!response.ok) {
+    throw new Error(`Failed to load quiz (${response.status})`)
+  }
+
+  const data: BackendQuizResponse = await response.json() as BackendQuizResponse
+  return mapQuizResponse(data)
 }
 
 export async function submitQuiz(answers: UserAnswer[]): Promise<QuizSubmission> {
-  const submissionId = `mock-submission-${(mockSubmissionCounter += 1)}`
-  const submittedAnswers = answers.map((answer) => ({ ...answer }))
-  const result = buildSubmissionResult(submissionId, submittedAnswers)
+  const response = await fetch(`${API_BASE_URL}/api/quizzes/oop-basics/submissions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId: 'student001', answers }),
+  })
 
-  mockSubmissionResults.set(submissionId, result)
+  if (!response.ok) {
+    throw new Error(`Failed to submit quiz (${response.status})`)
+  }
 
+  const data: BackendSubmissionResult = await response.json() as BackendSubmissionResult
+  return { submissionId: data.submissionId, quizId: data.quizId, answers }
+}
+
+export async function getSubmissionResult(submissionId: string): Promise<QuizSubmissionResult> {
+  const response = await fetch(`${API_BASE_URL}/api/submissions/${submissionId}/result`)
+
+  if (!response.ok) {
+    throw new Error(`Failed to load result (${response.status})`)
+  }
+
+  const data: BackendSubmissionResult = await response.json() as BackendSubmissionResult
+  return mapSubmissionResult(data)
+}
+
+function mapQuizResponse(data: BackendQuizResponse): Quiz {
   return {
-    submissionId,
-    quizId: mockQuiz.id,
-    answers: submittedAnswers,
+    id: data.quizId,
+    title: data.title,
+    description: data.description,
+    questions: data.questions.map(mapQuestion),
   }
 }
 
-export async function getSubmissionResult(
-  submissionId: string,
-): Promise<QuizSubmissionResult> {
-  const result = mockSubmissionResults.get(submissionId)
-
-  if (!result) {
-    throw new Error('Submission result was not found.')
-  }
-
-  return result
-}
-
-function buildSubmissionResult(
-  submissionId: string,
-  answers: UserAnswer[],
-): QuizSubmissionResult {
-  const answersByQuestionId = new Map(
-    answers.map((answer) => [answer.questionId, answer.selectedOptionId]),
-  )
-  const incorrectTopics = mockQuiz.questions
-    .filter((question) => answersByQuestionId.get(question.id) !== mockAnswerKey[question.id])
-    .map((question) => question.topic)
-  const correctAnswers = mockQuiz.questions.length - incorrectTopics.length
-  const totalQuestions = mockQuiz.questions.length
-  const scorePercentage = Math.round((correctAnswers / totalQuestions) * 100)
-  const weakTopics = incorrectTopics.map(formatTopicLabel)
-  const recommendation = getRecommendation(incorrectTopics)
-
+function mapQuestion(q: BackendQuestion): Question {
   return {
-    submissionId,
-    quizId: mockQuiz.id,
-    scorePercentage,
-    correctAnswers,
-    totalQuestions,
-    feedbackMessage: getFeedbackMessage(scorePercentage),
-    weakTopics,
-    recommendation,
+    id: q.questionId,
+    topic: mapTopic(q.topic),
+    prompt: q.prompt,
+    options: q.options.map((opt) => ({ id: opt.optionId, label: opt.text })),
   }
 }
 
-function getRecommendation(incorrectTopics: QuestionTopic[]) {
-  const firstWeakTopic = incorrectTopics[0]
-
-  if (!firstWeakTopic) {
-    return 'You are ready to continue to the next OOP topic.'
-  }
-
-  return (
-    mockRecommendations.find((recommendation) => recommendation.topic === firstWeakTopic)
-      ?.guidance ?? 'Review the topics you missed, then retry the quiz.'
-  )
+// Backend uses "classes and objects" (space-separated); frontend type uses kebab-case
+function mapTopic(topic: string): QuestionTopic {
+  if (topic === 'classes and objects') return 'classes-and-objects'
+  return topic as QuestionTopic
 }
 
-function getFeedbackMessage(scorePercentage: number) {
-  if (scorePercentage === 100) {
-    return 'Excellent work. You answered every OOP basics question correctly.'
+function mapSubmissionResult(data: BackendSubmissionResult): QuizSubmissionResult {
+  return {
+    submissionId: data.submissionId,
+    quizId: data.quizId,
+    scorePercentage: data.score,
+    correctAnswers: data.correctAnswers,
+    totalQuestions: data.totalQuestions,
+    feedbackMessage: data.feedback,
+    weakTopics: data.weakTopics,
+    recommendation: data.recommendation.message,
   }
-
-  if (scorePercentage >= 60) {
-    return 'Good progress. Review the topics you missed to strengthen your understanding.'
-  }
-
-  return 'Keep practicing. Review the core OOP topics, then try the quiz again.'
-}
-
-function formatTopicLabel(topic: QuestionTopic) {
-  return topic
-    .split('-')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
 }
